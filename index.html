@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="発表者と質問される側を切り替えて、会議の発言力を鍛える3Dブラウザゲーム">
+  <title>MEETING//SHIFT 3D</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307111f'/%3E%3Cpath d='M14 42V22l10 10 8-12 8 12 10-10v20' fill='none' stroke='%234be3ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='47' r='4' fill='%23ffb341'/%3E%3C/svg%3E">
+  <style>
+    :root{
+      --ink:#f4f8ff;--muted:#9fb0c8;--cyan:#4be3ff;--cyan2:#1287b5;
+      --orange:#ffb341;--danger:#ff5f72;--panel:rgba(5,14,28,.88);--line:rgba(123,176,219,.22);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050b14;color:var(--ink);
+      font-family:Inter,"Noto Sans JP","Hiragino Kaku Gothic ProN",system-ui,sans-serif}
+    button,input{font:inherit}
+    button{color:inherit}
+    #game{position:relative;width:100%;height:100%;isolation:isolate;background:#07111f}
+    #scene{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+    #scene:active{cursor:grabbing}
+    .vignette{position:absolute;inset:0;pointer-events:none;background:
+      radial-gradient(circle at 50% 46%,transparent 45%,rgba(0,0,0,.57) 115%),
+      linear-gradient(180deg,rgba(3,8,15,.45),transparent 24%,transparent 74%,rgba(3,8,15,.6))}
+    .hud{position:absolute;inset:0 0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:start;
+      gap:16px;padding:20px 22px;pointer-events:none}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:900;letter-spacing:.13em;font-size:clamp(.82rem,1.5vw,1rem)}
+    .brand-mark{width:32px;height:32px;border:1px solid rgba(75,227,255,.7);display:grid;place-items:center;
+      color:var(--cyan);transform:rotate(45deg);box-shadow:0 0 24px rgba(75,227,255,.18)}
+    .brand-mark span{transform:rotate(-45deg)}
+    .round-pill{justify-self:center;border:1px solid var(--line);background:rgba(4,13,26,.72);backdrop-filter:blur(12px);
+      padding:8px 14px;border-radius:999px;color:var(--muted);font-size:.8rem;letter-spacing:.08em}
+    .round-pill b{color:var(--ink);font-variant-numeric:tabular-nums}
+    .metrics{justify-self:end;display:flex;gap:14px}
+    .metric{min-width:100px}
+    .metric-head{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:6px}
+    .meter{height:5px;background:rgba(255,255,255,.1);overflow:hidden;border-radius:9px}
+    .meter i{display:block;height:100%;width:50%;background:var(--cyan);box-shadow:0 0 10px currentColor;transition:width .35s}
+    #stressBar{background:var(--danger)}
+    .mode-switch{position:absolute;top:84px;left:22px;display:flex;background:rgba(4,13,26,.77);border:1px solid var(--line);
+      border-radius:12px;padding:4px;pointer-events:auto;backdrop-filter:blur(12px)}
+    .mode-switch button{border:0;background:transparent;color:var(--muted);padding:9px 13px;border-radius:8px;
+      font-weight:750;font-size:.78rem;cursor:pointer}
+    .mode-switch button.active{background:linear-gradient(135deg,#11475e,#0a2d42);color:#dffaff;box-shadow:inset 0 0 0 1px rgba(75,227,255,.24)}
+    .speaker-tag{position:absolute;top:142px;left:50%;transform:translateX(-50%);background:rgba(4,13,26,.78);
+      border:1px solid rgba(75,227,255,.25);padding:8px 14px;border-radius:999px;color:#d9f9ff;font-size:.8rem;
+      backdrop-filter:blur(12px);opacity:0;transition:opacity .25s,transform .25s}
+    .speaker-tag.show{opacity:1;transform:translate(-50%,5px)}
+    .reticle{position:absolute;left:50%;top:48%;width:20px;height:20px;transform:translate(-50%,-50%);opacity:.5;pointer-events:none}
+    .reticle::before,.reticle::after{content:"";position:absolute;background:rgba(224,249,255,.75)}
+    .reticle::before{width:20px;height:1px;top:9px}.reticle::after{height:20px;width:1px;left:9px}
+    .prompt{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:min(760px,calc(100% - 32px));
+      background:linear-gradient(145deg,rgba(6,18,34,.94),rgba(7,28,46,.92));border:1px solid rgba(75,227,255,.28);
+      border-radius:18px;padding:18px 19px 16px;box-shadow:0 22px 70px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.05);
+      backdrop-filter:blur(18px);z-index:5;transition:opacity .25s,transform .25s}
+    .prompt.hidden{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
+    .prompt-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:9px}
+    .person{font-weight:850;color:var(--cyan);font-size:.8rem;letter-spacing:.07em}
+    .countdown{font:800 .8rem ui-monospace,monospace;color:var(--orange);font-variant-numeric:tabular-nums}
+    .question{font-weight:800;font-size:clamp(1rem,2vw,1.23rem);line-height:1.55;margin:0 0 13px}
+    .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .choice{border:1px solid rgba(122,177,219,.24);background:rgba(15,37,59,.8);border-radius:11px;padding:11px 12px;
+      text-align:left;cursor:pointer;line-height:1.45;min-height:64px;font-size:.85rem;transition:.16s}
+    .choice:hover,.choice:focus-visible{border-color:var(--cyan);background:#123d58;transform:translateY(-2px);outline:none}
+    .choice strong{display:block;color:var(--cyan);font-size:.69rem;letter-spacing:.1em;margin-bottom:3px}
+    .free-row{display:flex;gap:8px;margin-top:9px}
+    .free-row input{min-width:0;flex:1;border:1px solid rgba(122,177,219,.25);background:rgba(3,11,21,.7);border-radius:10px;
+      color:var(--ink);padding:10px 12px;outline:none}
+    .free-row input:focus{border-color:var(--cyan)}
+    .mic,.judge,.next{border:1px solid rgba(75,227,255,.35);background:#0e3e58;border-radius:10px;padding:9px 12px;
+      font-weight:800;cursor:pointer;white-space:nowrap}
+    .mic.live{background:#6d1b2b;border-color:#ff8b9a;animation:pulse 1s infinite}
+    .feedback{display:none;border-top:1px solid var(--line);margin-top:13px;padding-top:12px;line-height:1.55;color:#dce8f7}
+    .feedback.show{display:flex;gap:12px;align-items:center}
+    .feedback-score{font-weight:950;font-size:1.3rem;color:var(--orange);min-width:52px}
+    .feedback p{margin:0;flex:1;font-size:.86rem}
+    .next{background:var(--cyan);color:#05202a;border-color:transparent}
+    .controls{position:absolute;left:22px;bottom:24px;color:var(--muted);font-size:.72rem;line-height:1.7;pointer-events:none}
+    kbd{border:1px solid rgba(255,255,255,.18);border-bottom-width:2px;border-radius:5px;background:rgba(5,14,26,.7);
+      padding:2px 6px;color:#dce8f7;font-family:inherit}
+    .view-label{position:absolute;right:22px;bottom:25px;color:rgba(226,241,255,.68);font-size:.72rem;letter-spacing:.08em}
+    #sys{position:absolute;top:84px;right:22px;display:flex;gap:7px;z-index:6;pointer-events:auto}
+    #sys button{width:44px;height:44px;border-radius:11px;border:1px solid var(--line);background:rgba(4,13,26,.8);
+      color:var(--ink);font-size:.95rem;font-weight:800;line-height:1;cursor:pointer;backdrop-filter:blur(12px);touch-action:manipulation}
+    #sys button:active{transform:translateY(2px)}
+    #sys button[aria-pressed="true"]{opacity:.45}
+    #pauseDlg{border:1px solid rgba(75,227,255,.26);border-radius:22px;background:linear-gradient(145deg,#0a1729,#08111e);
+      color:var(--ink);padding:26px 24px;max-width:340px;width:calc(100% - 40px)}
+    #pauseDlg::backdrop{background:rgba(2,7,14,.76)}
+    #pauseDlg h2{margin:0 0 6px;font-size:1.5rem;letter-spacing:-.03em}
+    #pauseDlg p{margin:0 0 18px;color:var(--muted);font-size:.82rem}
+    #pauseDlg .col{display:flex;flex-direction:column;gap:10px}
+    #pauseDlg .col button{border:1px solid rgba(122,177,219,.26);background:rgba(14,38,62,.72);color:var(--ink);
+      border-radius:12px;padding:13px;font-weight:800;cursor:pointer}
+    #pauseDlg .col button:first-child{background:var(--cyan);color:#05202a;border-color:transparent}
+    .modal{position:absolute;inset:0;background:rgba(2,7,14,.72);backdrop-filter:blur(16px);display:grid;place-items:center;
+      padding:22px;z-index:10}
+    .modal.hidden{display:none}
+    .card{width:min(780px,100%);background:linear-gradient(145deg,#0a1729,#08111e);border:1px solid rgba(75,227,255,.26);
+      border-radius:24px;padding:clamp(24px,5vw,48px);box-shadow:0 35px 100px rgba(0,0,0,.6)}
+    .eyebrow{color:var(--cyan);font-size:.73rem;font-weight:900;letter-spacing:.18em;margin-bottom:12px}
+    h1{font-size:clamp(2rem,6vw,4.3rem);line-height:.92;letter-spacing:-.055em;margin:0 0 16px}
+    h1 span{color:var(--cyan)}
+    .lead{color:var(--muted);font-size:1rem;line-height:1.75;max-width:640px;margin:0 0 26px}
+    .mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .start-mode{border:1px solid rgba(122,177,219,.26);background:rgba(14,38,62,.72);border-radius:16px;padding:18px;
+      text-align:left;cursor:pointer;transition:.18s}
+    .start-mode:hover,.start-mode:focus-visible{border-color:var(--cyan);transform:translateY(-3px);outline:none;background:#113c58}
+    .start-mode b{display:block;font-size:1.06rem;margin-bottom:6px}
+    .start-mode span{color:var(--muted);font-size:.82rem;line-height:1.55}
+    .footer-note{margin-top:18px;color:#71839a;font-size:.75rem}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:24px 0}
+    .summary-cell{background:rgba(14,38,62,.62);border:1px solid var(--line);border-radius:13px;padding:15px}
+    .summary-cell small{display:block;color:var(--muted);margin-bottom:6px}.summary-cell b{font-size:1.55rem}
+    .rank{font-size:clamp(3.2rem,10vw,6rem);font-weight:950;line-height:1;color:var(--cyan);float:right}
+    .again{border:0;background:var(--cyan);color:#05202a;border-radius:11px;padding:12px 18px;font-weight:900;cursor:pointer}
+    .toast{position:absolute;top:142px;right:22px;background:#102c40;border:1px solid rgba(75,227,255,.35);border-radius:11px;
+      padding:11px 14px;color:#dffaff;font-size:.8rem;transform:translateX(120%);transition:.25s;z-index:8}
+    .toast.show{transform:translateX(0)}
+    .mobile-look{display:none;position:absolute;right:17px;bottom:calc(105px + env(safe-area-inset-bottom));grid-template-columns:repeat(3,48px);gap:6px;z-index:4}
+    .mobile-look button{width:48px;height:48px;border-radius:11px;border:1px solid var(--line);background:rgba(4,13,26,.75);color:var(--ink);touch-action:none}
+    .mobile-look button:active{background:#11475e}
+    .mobile-look .up{grid-column:2}.mobile-look .left{grid-column:1}.mobile-look .down{grid-column:2}.mobile-look .right{grid-column:3}
+    @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(255,95,114,0)}}
+    @media(max-width:760px){
+      .hud{padding:12px;grid-template-columns:1fr auto}.round-pill{display:none}.brand{font-size:.72rem}.brand-mark{width:27px;height:27px}
+      .metrics{gap:8px}.metric{min-width:72px}.metric-head{font-size:.64rem}
+      .mode-switch{top:56px;left:12px}.mode-switch button{padding:8px 9px;font-size:.69rem}
+      .prompt{bottom:10px;padding:14px;width:calc(100% - 20px);max-height:57vh;overflow:auto}
+      .choices{grid-template-columns:1fr}.choice{min-height:0;padding:9px 10px}
+      .free-row{flex-wrap:wrap}.free-row input{flex-basis:100%}.mic,.judge{flex:1}
+      .controls,.view-label{display:none}.mobile-look{display:grid}.speaker-tag{top:105px}
+      .question{font-size:.96rem}.card{padding:25px 20px}.mode-cards{grid-template-columns:1fr}
+    }
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<main id="game" aria-label="3D会議トレーニングゲーム">
+  <!-- 開始幕は canvas より前に置く（DOM先頭の操作対象を実際に押せるボタンにする） -->
+  <section id="startModal" class="modal">
+    <div class="card">
+      <div class="eyebrow">3D MEETING SIMULATOR</div>
+      <h1>会議は、<br><span>視点</span>で変わる。</h1>
+      <p class="lead">5つの質問に、20秒以内で答える。話の型を選んでも、自分の声で答えてもOK。立場を切り替えると、同じ会議がまるで別物になる。</p>
+      <div class="mode-cards">
+        <button class="start-mode" data-start="presenter"><b>🎤 発表者として始める</b><span>前に立ち、結論・根拠・次の一手を短く伝える</span></button>
+        <button class="start-mode" data-start="respondent"><b>◉ 質問される側で始める</b><span>席から、鋭い質問や想定外の指摘に答える</span></button>
+      </div>
+      <div class="footer-note">音声認識は対応ブラウザのみ。マイクを使わなくても最後まで遊べます。</div>
+    </div>
+  </section>
+  <canvas id="scene" aria-label="3D会議室。ドラッグで見回せます"></canvas>
+  <div id="sys">
+    <button type="button" id="btnMute" aria-label="音の切り替え" aria-pressed="false">♪</button>
+    <button type="button" id="btnPause" aria-label="一時停止">Ⅱ</button>
+  </div>
+  <div class="vignette"></div>
+  <header class="hud">
+    <div class="brand"><div class="brand-mark"><span>M</span></div>MEETING//SHIFT</div>
+    <div class="round-pill">SESSION <b id="roundText">0 / 5</b></div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-head"><span>信頼</span><b id="trustText">50</b></div><div class="meter"><i id="trustBar"></i></div></div>
+      <div class="metric"><div class="metric-head"><span>緊張</span><b id="stressText">28</b></div><div class="meter"><i id="stressBar"></i></div></div>
+    </div>
+  </header>
+  <nav class="mode-switch" aria-label="視点モード">
+    <button id="presenterMode" class="active" type="button">発表者視点</button>
+    <button id="respondentMode" type="button">質問される側</button>
+  </nav>
+  <div id="speakerTag" class="speaker-tag" aria-live="polite">部長がこちらを見ています</div>
+  <div class="reticle"></div>
+  <section id="prompt" class="prompt hidden" aria-live="polite">
+    <div class="prompt-top"><span id="person" class="person">営業部長</span><span id="countdown" class="countdown">20.0 SEC</span></div>
+    <p id="question" class="question"></p>
+    <div id="choices" class="choices"></div>
+    <div class="free-row">
+      <input id="freeAnswer" type="text" autocomplete="off" maxlength="120" placeholder="自分の言葉で入力してもOK">
+      <button id="micBtn" class="mic" type="button" aria-label="音声で答える">● 声で答える</button>
+      <button id="judgeBtn" class="judge" type="button">判定</button>
+    </div>
+    <div id="feedback" class="feedback">
+      <div id="feedbackScore" class="feedback-score">+0</div>
+      <p id="feedbackText"></p>
+      <button id="nextBtn" class="next" type="button">次へ →</button>
+    </div>
+  </section>
+  <div class="controls"><kbd>ドラッグ</kbd> 見回す　<kbd>WASD</kbd> 移動　<kbd>V</kbd> 視点切替　<kbd>Space</kbd> 発言</div>
+  <div class="view-label" id="viewLabel">PRESENTER POV · FRONT STAGE</div>
+  <div class="mobile-look" aria-label="カメラ操作">
+    <button class="up" data-move="forward">↑</button><button class="left" data-turn="-1">←</button>
+    <button class="down" data-move="back">↓</button><button class="right" data-turn="1">→</button>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+    <section id="summaryModal" class="modal hidden">
+    <div class="card">
+      <div id="rank" class="rank">A</div>
+      <div class="eyebrow">SESSION COMPLETE</div>
+      <h2 id="summaryTitle">会議を乗り切った。</h2>
+      <p id="summaryMessage" class="lead"></p>
+      <div class="summary-grid">
+        <div class="summary-cell"><small>総合スコア</small><b id="finalScore">0</b></div>
+        <div class="summary-cell"><small>信頼</small><b id="finalTrust">0</b></div>
+        <div class="summary-cell"><small>緊張</small><b id="finalStress">0</b></div>
+        <div class="summary-cell"><small>自己ベスト</small><b id="bestScore">0</b></div>
+      </div>
+      <button id="againBtn" class="again" type="button">別の視点でもう一度</button>
+    </div>
+  </section>
+  <dialog id="pauseDlg" aria-labelledby="pauseTitle">
+    <h2 id="pauseTitle">一時停止</h2>
+    <p>会議は止まっている。呼吸を整えてから戻ろう。</p>
+    <div class="col">
+      <button type="button" id="btnResume">再開する</button>
+      <button type="button" id="btnMuteDlg">音: オン</button>
+      <button type="button" id="btnQuit">タイトルへ戻る</button>
+    </div>
+  </dialog>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const canvas = $("#scene"), ctx = canvas.getContext("2d", { alpha:false });
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const state = {
+    mode:"presenter", playing:false, paused:false, round:0, score:0, trust:50, stress:28,
+    time:20, active:null, answered:false, lastQuality:0, reaction:0,
+    camera:{x:0,y:1.7,z:-5.1,yaw:0,pitch:-0.02}, keys:new Set()
+  };
+  const presenterScenarios = [
+    {person:"営業部長", q:"まず、今回の提案を30秒で説明してください。結論は何ですか？",
+      keys:["結論","理由","提案","効果"], choices:[
+        ["結論先行","結論は法人同行を月2回に増やすことです。理由は案件化率を上げるためです。",3,"結論→理由が一息で伝わった。会議の入口として強い。"],
+        ["経緯から","先月から各担当者にヒアリングを重ね、資料も確認したのですが……",1,"丁寧だけど、相手は結論を待ってる。最初の一文を短くしよ。"],
+        ["勢い重視","とにかく絶対に、かなり効果があると思います！",0,"熱量だけでは判断できない。何を、なぜやるかを置こう。"]]},
+    {person:"財務担当", q:"その施策に時間を使うだけの、数字の根拠はありますか？",
+      keys:["数字","件","率","比較","実績"], choices:[
+        ["事実＋解釈","試行3店では面談数が18％増加しました。この差を再現できると見ています。",3,"数字と解釈を分けたので、根拠がクリア。"],
+        ["感覚で回答","現場の感触として、たぶん良い反応だったと思います。",0,"感触は補助材料。比較できる数字を一つ入れたい。"],
+        ["資料へ逃げる","細かい点は、あとで資料をご覧ください。",1,"即答できない時も、把握している範囲と確認期限は示そう。"]]},
+    {person:"支社長", q:"計画が遅れた場合、誰がいつリカバリーするのですか？",
+      keys:["私","期限","まで","担当","対応"], choices:[
+        ["責任＋期限","私が週次で進捗を確認し、遅れは翌週火曜までに支援計画へ反映します。",3,"担当者と期限が明確。安心して任せられる回答。"],
+        ["チーム任せ","そこは現場のみなさんに頑張ってもらいます。",0,"責任の所在が消えた。自分が持つアクションを言い切ろう。"],
+        ["曖昧に保留","状況を見ながら、柔軟に考えたいと思います。",1,"柔軟さは大事。でも判断基準と期限がないと動けない。"]]},
+    {person:"同僚・田中", q:"現場の負担が増えるという反対意見には、どう答えますか？",
+      keys:["負担","試行","限定","見直し","意見"], choices:[
+        ["受容＋小さく試す","負担の懸念はその通りです。まず2支店限定で試し、2週間後に工数を見直します。",3,"反対を否定せず、実験サイズを小さくしたのが効いた。"],
+        ["正しさで押す","必要な施策なので、多少の負担は仕方ありません。",0,"正論で押すと協力が消える。懸念を一度受け止めよう。"],
+        ["全面撤回","反対があるなら、この案はやめてもいいです。",1,"引くのが早い。条件を限定して検証する余地がある。"]]},
+    {person:"営業部長", q:"最後に。この会議で、私たちに何を決めてほしいですか？",
+      keys:["承認","決定","ください","本日","合意"], choices:[
+        ["決定依頼","本日は2支店での4週間の試行実施をご承認ください。",3,"会議の出口が明確。決めるべきことを一文にできた。"],
+        ["感想を求める","何かご意見や感想があればお願いします。",1,"広すぎる問い。承認・選択・確認のどれかに絞ろう。"],
+        ["締めるだけ","以上で発表を終わります。ありがとうございました。",0,"発表は終わったけど、意思決定が始まってない。"]]}
+  ];
+  const respondentScenarios = [
+    {person:"営業部長", q:"今月の進捗、目標より下ですよね。原因をどう見ていますか？",
+      keys:["事実","原因","対策","件","今週"], choices:[
+        ["事実→原因→対策","目標比で3件不足です。初回面談化が原因なので、今週は対象先を再選定します。",3,"事実・分析・行動が一直線。守りに入らず答えられた。"],
+        ["外部要因だけ","市場環境が厳しく、先方の都合も重なりました。",0,"外部要因だけだと改善の主導権がない。自分が変える点を加えよう。"],
+        ["長く説明","まず4月の状況からお話しすると、そもそも体制変更がありまして……",1,"質問は今月の原因。時間軸を戻しすぎず、現在地から答えよう。"]]},
+    {person:"監査担当", q:"その数字、本当に確認済みですか？根拠を示せますか？",
+      keys:["確認","資料","時点","件","共有"], choices:[
+        ["確認範囲を明示","昨日17時時点の管理表で確認済みです。該当3件の一覧を会議後に共有します。",3,"確認時点と証拠を言えた。信頼が積み上がる。"],
+        ["たぶん大丈夫","記憶では合っているはずです。",0,"不確かな時ほど断定しない。確認方法と返答期限を言おう。"],
+        ["逆質問","何か数字に問題がありましたか？",1,"聞き返す前に、把握している事実を一つ返したい。"]]},
+    {person:"支社長", q:"あなた自身は、次に何を変えるつもりですか？",
+      keys:["私","明日","今週","行う","変え"], choices:[
+        ["自分の行動","私は明日から、朝15分を案件レビューに固定し、優先3社への準備を前倒しします。",3,"自分主語＋開始日＋具体行動。実行イメージが湧く。"],
+        ["周囲への要望","担当者側でも、もっと早く動いてほしいです。",0,"他人の課題にすり替わった。まず自分が変える一点を示そう。"],
+        ["精神論","意識を高く持ち、全力で頑張ります。",1,"気持ちは伝わるけど、明日何をするのかが見えない。"]]},
+    {person:"同僚・田中", q:"そのやり方だと、チーム内で情報格差が広がりませんか？",
+      keys:["共有","週","全員","記録","ルール"], choices:[
+        ["懸念＋仕組み","その懸念はあります。週1回の共有と共通記録をルール化し、属人化を防ぎます。",3,"懸念を認めた上で仕組みに落とした。対話として強い。"],
+        ["否定する","いいえ、特に問題はないと思います。",0,"根拠のない否定は反発を招く。起こり得る前提で対策しよう。"],
+        ["相手に返す","では、田中さんはどうすればいいと思いますか？",1,"意見を求めるのはアリ。でも先に自分の仮説を置こう。"]]},
+    {person:"営業部長", q:"その約束、いつまでに結果を報告できますか？",
+      keys:["日","まで","報告","中間","結果"], choices:[
+        ["期限＋中間報告","9月25日までに結果を報告します。途中経過は18日に一度共有します。",3,"最終期限と中間地点のセット。進捗が見える約束。"],
+        ["できるだけ早く","なるべく早めにご報告します。",0,"『早め』は人によって違う。日付で合意しよう。"],
+        ["無理な即答","明日までに全部終わらせます。",1,"速さより現実性。守れる期限と中間報告を出そう。"]]}
+  ];
+
+  const els = {
+    prompt:$("#prompt"), person:$("#person"), question:$("#question"), choices:$("#choices"),
+    countdown:$("#countdown"), free:$("#freeAnswer"), feedback:$("#feedback"),
+    feedbackScore:$("#feedbackScore"), feedbackText:$("#feedbackText"), next:$("#nextBtn"),
+    trustBar:$("#trustBar"), stressBar:$("#stressBar"), trustText:$("#trustText"), stressText:$("#stressText"),
+    roundText:$("#roundText"), speakerTag:$("#speakerTag"), toast:$("#toast"), viewLabel:$("#viewLabel")
+  };
+
+  function resize(){
+    const dpr=Math.min(devicePixelRatio||1,2);
+    canvas.width=Math.round(innerWidth*dpr); canvas.height=Math.round(innerHeight*dpr);
+    canvas.style.width=innerWidth+"px"; canvas.style.height=innerHeight+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  addEventListener("resize",resize); resize();
+
+  const LS={muted:"tg.239.muted",best:"tg.239.best"};
+  const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}};
+  const lsSet=(k,v)=>{try{localStorage.setItem(k,String(v))}catch(e){}};
+  let muted = lsGet(LS.muted,"0")==="1";
+
+  function tone(freq=520,duration=.07,type="sine"){
+    if(muted)return;
+    try{
+      const ac=tone.ac||(tone.ac=new (AudioContext||webkitAudioContext)());
+      const o=ac.createOscillator(),g=ac.createGain(); o.type=type;o.frequency.value=freq;
+      g.gain.setValueAtTime(.035,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+duration);
+      o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+duration);
+    }catch(e){}
+  }
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+  function shade(hex,amount){
+    const n=parseInt(hex.slice(1),16),r=clamp((n>>16)+amount,0,255),g=clamp(((n>>8)&255)+amount,0,255),b=clamp((n&255)+amount,0,255);
+    return `rgb(${r},${g},${b})`;
+  }
+  function project(p){
+    const c=state.camera,dx=p.x-c.x,dy=p.y-c.y,dz=p.z-c.z,cy=Math.cos(c.yaw),sy=Math.sin(c.yaw);
+    const x=cy*dx-sy*dz,z=sy*dx+cy*dz,cp=Math.cos(c.pitch),sp=Math.sin(c.pitch);
+    const y=cp*dy-sp*z,zz=sp*dy+cp*z;
+    if(zz<.16)return null;
+    const f=Math.min(innerWidth,innerHeight)*.92;
+    return {x:innerWidth/2+x*f/zz,y:innerHeight/2-y*f/zz,z:zz};
+  }
+  const faces=[
+    [0,1,2,3,-18],[4,7,6,5,9],[0,4,5,1,-8],[3,2,6,7,-4],[1,5,6,2,5],[0,3,7,4,-12]
+  ];
+  function box(polys,x,y,z,w,h,d,color){
+    const X=w/2,Y=h/2,Z=d/2,v=[
+      {x:x-X,y:y-Y,z:z-Z},{x:x+X,y:y-Y,z:z-Z},{x:x+X,y:y+Y,z:z-Z},{x:x-X,y:y+Y,z:z-Z},
+      {x:x-X,y:y-Y,z:z+Z},{x:x+X,y:y-Y,z:z+Z},{x:x+X,y:y+Y,z:z+Z},{x:x-X,y:y+Y,z:z+Z}
+    ];
+    faces.forEach(f=>{const pts=f.slice(0,4).map(i=>project(v[i]));if(pts.every(Boolean))polys.push({pts,z:pts.reduce((s,p)=>s+p.z,0)/4,c:shade(color,f[4])})});
+  }
+  function plane(polys,pts,color){
+    const ps=pts.map(project);if(ps.every(Boolean))polys.push({pts:ps,z:ps.reduce((s,p)=>s+p.z,0)/ps.length,c:color});
+  }
+  function avatar(polys,x,z,color,t,react=0){
+    const bob=(reduceMotion?0:Math.sin(t*1.8+x)*.025)+(react>0?Math.sin(t*10)*.025*react:0);
+    box(polys,x,1.05+bob,z,.58,.88,.34,color);
+    box(polys,x,1.7+bob,z,.43,.43,.4,"#d6a277");
+    box(polys,x,1.91+bob,z,.45,.16,.42,"#172236");
+    box(polys,x,1.18+bob,z+.23,.7,.1,.17,shade(color,16));
+  }
+  function render(tms){
+    const t=tms/1000,polys=[];
+    const sky=ctx.createLinearGradient(0,0,0,innerHeight);sky.addColorStop(0,"#0b1d32");sky.addColorStop(1,"#030812");
+    ctx.fillStyle=sky;ctx.fillRect(0,0,innerWidth,innerHeight);
+    plane(polys,[{x:-7,y:0,z:-8},{x:7,y:0,z:-8},{x:7,y:0,z:7},{x:-7,y:0,z:7}],"#142536");
+    plane(polys,[{x:-7,y:0,z:-8},{x:-7,y:4,z:-8},{x:7,y:4,z:-8},{x:7,y:0,z:-8}],"#183049");
+    plane(polys,[{x:-7,y:0,z:7},{x:-7,y:4,z:7},{x:-7,y:4,z:-8},{x:-7,y:0,z:-8}],"#102338");
+    plane(polys,[{x:7,y:0,z:-8},{x:7,y:4,z:-8},{x:7,y:4,z:7},{x:7,y:0,z:7}],"#0d2135");
+    for(let x=-6;x<=6;x+=1.5)plane(polys,[{x,y:.012,z:-8},{x,y:.012,z:7}], "rgba(87,145,183,.13)");
+    for(let z=-8;z<=7;z+=1.5)plane(polys,[{x:-7,y:.012,z},{x:7,y:.012,z}], "rgba(87,145,183,.13)");
+    box(polys,0,1.45,-7.74,5.6,2.45,.12,"#d4e8f7");
+    box(polys,0,.38,-6.55,3.15,.76,.92,"#213b51");
+    box(polys,0,1.08,-6.4,.82,1.35,.62,"#244b65");
+    box(polys,0,1.72,-6.07,.18,.32,.12,"#111c28");
+    box(polys,0,1.98,-6.07,.5,.1,.1,"#182635");
+    [-3.4,0,3.4].forEach((x,i)=>{box(polys,x,.72,-1+i*.1,2.5,.16,1.15,"#33485b");box(polys,x,.32,-1+i*.1,.12,.65,.12,"#1b2b3b")});
+    [-3.4,0,3.4].forEach((x,i)=>avatar(polys,x,-.72,["#2f6f91","#6b557e","#355f55"][i],t,state.reaction));
+    [-2.1,2.1].forEach((x,i)=>{box(polys,x,.72,2.25,2.8,.16,1.15,"#33485b");avatar(polys,x,2.52,["#77513f","#315a7e"][i],t,state.reaction*.6)});
+    box(polys,-5.85,1.1,-4.5,.18,2.2,2.8,"#27425a");box(polys,5.85,1.1,-4.5,.18,2.2,2.8,"#27425a");
+    box(polys,-5.9,2.9,1.2,.1,.95,2.3,"#25627a");box(polys,5.9,2.9,1.2,.1,.95,2.3,"#25627a");
+    polys.sort((a,b)=>b.z-a.z);
+    ctx.lineJoin="round";
+    polys.forEach(p=>{
+      ctx.beginPath();ctx.moveTo(p.pts[0].x,p.pts[0].y);for(let i=1;i<p.pts.length;i++)ctx.lineTo(p.pts[i].x,p.pts[i].y);
+      if(p.pts.length>2)ctx.closePath();ctx.fillStyle=p.c;ctx.fill();ctx.strokeStyle="rgba(144,190,220,.09)";ctx.lineWidth=.7;ctx.stroke();
+    });
+    drawScreen();
+    const glow=ctx.createRadialGradient(innerWidth/2,innerHeight*.1,0,innerWidth/2,innerHeight*.1,innerWidth*.55);
+    glow.addColorStop(0,"rgba(62,196,255,.09)");glow.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=glow;ctx.fillRect(0,0,innerWidth,innerHeight*.72);
+    if(!state.paused)updateMovement();
+    requestAnimationFrame(render);
+  }
+  function drawScreen(){
+    const p=project({x:0,y:1.52,z:-7.55}); if(!p||p.z>25)return;
+    const size=clamp(310/p.z,15,52);
+    ctx.save();ctx.textAlign="center";ctx.fillStyle="#0c2637";ctx.font=`900 ${size*.36}px system-ui`;
+    ctx.fillText(state.mode==="presenter"?"Q&A SESSION":"STATUS / ACTION",p.x,p.y-size*.34);
+    ctx.fillStyle="#177a96";ctx.fillRect(p.x-size*1.25,p.y-size*.08,size*2.5,2);
+    ctx.fillStyle="#476879";ctx.font=`700 ${size*.19}px system-ui`;
+    ctx.fillText(`ROUND ${state.round||1} — KEEP IT CLEAR`,p.x,p.y+size*.28);ctx.restore();
+  }
+  function updateMovement(){
+    const c=state.camera,s=.035;
+    if(state.keys.has("KeyA"))c.yaw-=.018;if(state.keys.has("KeyD"))c.yaw+=.018;
+    let m=0;if(state.keys.has("KeyW"))m+=s;if(state.keys.has("KeyS"))m-=s;
+    c.x=clamp(c.x+Math.sin(c.yaw)*m,-5.4,5.4);c.z=clamp(c.z+Math.cos(c.yaw)*m,-6.3,5.7);
+  }
+  requestAnimationFrame(render);
+
+  let dragging=false,lastX=0,lastY=0;
+  canvas.addEventListener("pointerdown",e=>{if(state.paused)return;dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
+  canvas.addEventListener("pointermove",e=>{if(!dragging)return;state.camera.yaw-= (e.clientX-lastX)*.004;state.camera.pitch=clamp(state.camera.pitch+(e.clientY-lastY)*.003,-.45,.4);lastX=e.clientX;lastY=e.clientY});
+  ["pointerup","pointercancel","lostpointercapture"].forEach(ev=>canvas.addEventListener(ev,()=>dragging=false));
+  addEventListener("keydown",e=>{
+    if(e.code==="KeyP"||e.code==="Escape"){e.preventDefault();state.paused?resumeGame():pauseGame();return}
+    if(state.paused)return;
+    if(["KeyW","KeyA","KeyS","KeyD"].includes(e.code))state.keys.add(e.code);
+    if(e.code==="KeyV"){e.preventDefault();setMode(state.mode==="presenter"?"respondent":"presenter",true)}
+    if(e.code==="Space"&&state.playing&&!state.answered){e.preventDefault();$("#micBtn").click()}
+  });
+  addEventListener("keyup",e=>state.keys.delete(e.code));
+  const grab=(b,e)=>{try{b.setPointerCapture(e.pointerId)}catch(_){}};
+  document.querySelectorAll("[data-turn]").forEach(b=>b.addEventListener("pointerdown",e=>{if(state.paused)return;e.preventDefault();grab(b,e);state.camera.yaw+=Number(b.dataset.turn)*.22}));
+  document.querySelectorAll("[data-move]").forEach(b=>b.addEventListener("pointerdown",e=>{if(state.paused)return;e.preventDefault();grab(b,e);const d=b.dataset.move==="forward"?.3:-.3;state.camera.x=clamp(state.camera.x+Math.sin(state.camera.yaw)*d,-5.4,5.4);state.camera.z=clamp(state.camera.z+Math.cos(state.camera.yaw)*d,-6.3,5.7)}));
+
+  function resetCamera(){
+    state.camera=state.mode==="presenter"?{x:0,y:1.7,z:-5.1,yaw:0,pitch:-.02}:{x:0,y:1.65,z:3.35,yaw:Math.PI,pitch:-.03};
+  }
+  function setMode(mode,announce=false){
+    state.mode=mode;resetCamera();
+    $("#presenterMode").classList.toggle("active",mode==="presenter");
+    $("#respondentMode").classList.toggle("active",mode==="respondent");
+    els.viewLabel.textContent=mode==="presenter"?"PRESENTER POV · FRONT STAGE":"RESPONDENT POV · MEETING TABLE";
+    if(announce)showToast(mode==="presenter"?"発表者の視点へ切り替え":"質問される側の視点へ切り替え");
+  }
+  $("#presenterMode").onclick=()=>setMode("presenter",true);
+  $("#respondentMode").onclick=()=>setMode("respondent",true);
+  document.querySelectorAll("[data-start]").forEach(b=>b.onclick=()=>startGame(b.dataset.start));
+
+  function startGame(mode){
+    setMode(mode);state.playing=true;state.paused=false;state.round=0;state.score=0;state.trust=50;state.stress=28;state.answered=false;
+    $("#startModal").classList.add("hidden");$("#summaryModal").classList.add("hidden");updateHud();tone(420,.1);setTimeout(beginRound,380);
+  }
+  let timerId=0;
+  function beginRound(){
+    if(state.round>=5){finishGame();return}
+    state.round++;state.answered=false;state.time=20;state.reaction=0;
+    const list=state.mode==="presenter"?presenterScenarios:respondentScenarios;
+    state.active=list[state.round-1];els.person.textContent=state.active.person;els.question.textContent=state.active.q;
+    els.free.value="";els.free.disabled=false;$("#micBtn").disabled=false;$("#judgeBtn").disabled=false;
+    els.feedback.classList.remove("show");els.choices.innerHTML="";
+    state.active.choices.forEach((c,i)=>{
+      const b=document.createElement("button");b.className="choice";b.type="button";
+      b.innerHTML=`<strong>0${i+1} · ${c[0]}</strong>${c[1]}`;b.onclick=()=>answer(c[2],c[3],c[1]);els.choices.appendChild(b);
+    });
+    els.prompt.classList.remove("hidden");els.speakerTag.textContent=state.active.person+"がこちらを見ています";
+    els.speakerTag.classList.add("show");setTimeout(()=>els.speakerTag.classList.remove("show"),1800);
+    updateHud();clearInterval(timerId);
+    timerId=setInterval(()=>{if(state.paused)return;state.time=Math.max(0,state.time-.1);els.countdown.textContent=state.time.toFixed(1)+" SEC";
+      if(state.time<=0){clearInterval(timerId);answer(0,"時間切れ。最初の一文だけでも、結論から声に出そう。","")}
+    },100);
+  }
+  function answer(quality,message,spoken){
+    if(state.answered)return;state.answered=true;clearInterval(timerId);
+    const speedBonus=state.time>10?2:state.time>4?1:0, gain=quality*8+speedBonus;
+    state.score+=gain;state.trust=clamp(state.trust+(quality-1)*6,0,100);state.stress=clamp(state.stress+(2-quality)*7-(speedBonus?2:0),0,100);
+    state.lastQuality=quality;state.reaction=quality>=2?1:-.6;
+    els.feedbackScore.textContent=(gain?"+":"")+gain;els.feedbackScore.style.color=quality>=2?"#4be3ff":quality===1?"#ffb341":"#ff5f72";
+    els.feedbackText.textContent=message;els.feedback.classList.add("show");
+    [...els.choices.children].forEach(b=>b.disabled=true);els.free.disabled=true;$("#micBtn").disabled=true;$("#judgeBtn").disabled=true;
+    updateHud();tone(quality>=2?680:quality===1?360:190,.13,quality>=2?"sine":"sawtooth");
+  }
+  function evaluateFree(){
+    const text=els.free.value.trim();if(!text){showToast("ひとこと入力するか、回答カードを選んでね");return}
+    const hits=state.active.keys.filter(k=>text.includes(k)).length;
+    const quality=hits>=2&&text.length>=16?3:hits>=1||text.length>=24?2:1;
+    const msg=quality===3?`キーワード「${state.active.keys.filter(k=>text.includes(k)).slice(0,2).join("・")}」が入り、具体的で伝わる回答。`:
+      quality===2?"方向はいい。担当・数字・期限のどれかを足すと、もっと強くなる。":"少し抽象的。まず結論を一文にして、具体語を一つ足そう。";
+    answer(quality,msg,text);
+  }
+  $("#judgeBtn").onclick=evaluateFree;els.free.addEventListener("keydown",e=>{if(e.key==="Enter")evaluateFree()});
+  els.next.onclick=()=>{els.prompt.classList.add("hidden");tone(520,.06);setTimeout(beginRound,300)};
+
+  let recognition=null;
+  $("#micBtn").onclick=()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){showToast("このブラウザは音声認識に未対応。入力欄を使ってね");els.free.focus();return}
+    if(recognition){recognition.stop();return}
+    recognition=new SR();recognition.lang="ja-JP";recognition.interimResults=true;recognition.continuous=false;
+    $("#micBtn").classList.add("live");$("#micBtn").textContent="■ 聞き取り中";
+    recognition.onresult=e=>{els.free.value=Array.from(e.results).map(r=>r[0].transcript).join("")};
+    recognition.onerror=()=>showToast("音声を拾えなかったよ。もう一度どうぞ");
+    recognition.onend=()=>{recognition=null;$("#micBtn").classList.remove("live");$("#micBtn").textContent="● 声で答える";if(els.free.value.trim())evaluateFree()};
+    recognition.start();tone(880,.05);
+  };
+  function finishGame(){
+    state.playing=false;els.prompt.classList.add("hidden");
+    const rank=state.score>=105?"S":state.score>=82?"A":state.score>=58?"B":"C";
+    $("#rank").textContent=rank;$("#finalScore").textContent=state.score;$("#finalTrust").textContent=state.trust;$("#finalStress").textContent=state.stress;
+    $("#summaryTitle").textContent=rank==="S"?"場の主導権を握った。":rank==="A"?"伝わる発言ができた。":rank==="B"?"あと一歩、具体的に。":"結論から話せば変わる。";
+    $("#summaryMessage").textContent=state.mode==="presenter"?
+      "発表は「結論→根拠→依頼」で締めると強い。次は質問される側の視点で、即答力も試してみよう。":
+      "質問には「事実→自分の行動→期限」で返すと信頼が上がる。次は発表者の視点でも挑戦してみよう。";
+    const best=Math.max(state.score, parseInt(lsGet(LS.best,"0"),10)||0);
+    lsSet(LS.best,best); $("#bestScore").textContent=best;
+    $("#summaryModal").classList.remove("hidden");tone(720,.2);setTimeout(()=>tone(940,.18),170);
+  }
+  $("#againBtn").onclick=()=>startGame(state.mode==="presenter"?"respondent":"presenter");
+  // ---------- コントロールパネル ----------
+  function setMute(v){
+    muted=v; lsSet(LS.muted, muted?"1":"0");
+    const b=$("#btnMute");
+    b.textContent = muted?"🔇":"♪";
+    b.setAttribute("aria-pressed", muted?"true":"false");
+    $("#btnMuteDlg").textContent = "音: " + (muted?"オフ":"オン");
+  }
+  function pauseGame(){
+    if(!state.playing||state.paused)return;
+    state.paused=true; state.keys.clear(); dragging=false;
+    const d=$("#pauseDlg"); if(!d.open&&typeof d.showModal==="function")d.showModal();
+  }
+  function resumeGame(){
+    if(!state.paused)return;
+    state.paused=false;
+    const d=$("#pauseDlg"); if(d.open)d.close();
+  }
+  function quitToTitle(){
+    const d=$("#pauseDlg"); if(d.open)d.close();
+    state.paused=false; state.playing=false; clearInterval(timerId);
+    els.prompt.classList.add("hidden");
+    $("#summaryModal").classList.add("hidden");
+    $("#startModal").classList.remove("hidden");
+  }
+  $("#btnMute").onclick=()=>setMute(!muted);
+  $("#btnMuteDlg").onclick=()=>setMute(!muted);
+  $("#btnPause").onclick=()=>{state.paused?resumeGame():pauseGame()};
+  $("#btnResume").onclick=resumeGame;
+  $("#btnQuit").onclick=quitToTitle;
+  $("#pauseDlg").addEventListener("cancel",e=>{e.preventDefault();resumeGame()});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden)pauseGame()});
+  setMute(muted);
+
+  function updateHud(){
+    els.trustText.textContent=Math.round(state.trust);els.stressText.textContent=Math.round(state.stress);
+    els.trustBar.style.width=state.trust+"%";els.stressBar.style.width=state.stress+"%";els.roundText.textContent=state.round+" / 5";
+  }
+  let toastTimer=0;function showToast(msg){els.toast.textContent=msg;els.toast.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>els.toast.classList.remove("show"),2200)}
+  updateHud();
+
+  function registerWebMCP(){
+    const mc=document.modelContext;if(!mc?.registerTool)return;
+    const registration=(tool)=>{try{Promise.resolve(mc.registerTool(tool)).catch(()=>{})}catch(e){}};
+    registration({name:"read_meeting_state",title:"会議ゲームの状態を読む",description:"現在の視点、ラウンド、信頼、緊張、スコアを取得します。",
+      inputSchema:{type:"object",properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},
+      execute:()=>({mode:state.mode,playing:state.playing,round:state.round,score:state.score,trust:state.trust,stress:state.stress,question:state.active?.q||null})});
+    registration({name:"start_meeting_session",title:"会議セッションを開始",description:"発表者または質問される側の視点で5問の会議ゲームを開始します。",
+      inputSchema:{type:"object",properties:{mode:{type:"string",enum:["presenter","respondent"]}},required:["mode"],additionalProperties:false},
+      annotations:{readOnlyHint:false,untrustedContentHint:false},execute:(input)=>{if(!input||!["presenter","respondent"].includes(input.mode))throw new Error("mode must be presenter or respondent");startGame(input.mode);return {started:true,mode:state.mode,round:state.round}}});
+    registration({name:"submit_meeting_response",title:"会議の回答を送信",description:"表示中の質問へ自由回答を送り、画面とゲーム状態を更新します。",
+      inputSchema:{type:"object",properties:{response:{type:"string",minLength:1,maxLength:120}},required:["response"],additionalProperties:false},
+      annotations:{readOnlyHint:false,untrustedContentHint:false},execute:(input)=>{if(!state.playing||state.answered||!state.active)throw new Error("回答可能な質問がありません");if(typeof input?.response!=="string"||!input.response.trim())throw new Error("response is required");els.free.value=input.response.trim().slice(0,120);evaluateFree();return {accepted:true,score:state.score,trust:state.trust,stress:state.stress}}});
+  }
+  registerWebMCP();
+})();
+</script>
+</body>
+</html>
